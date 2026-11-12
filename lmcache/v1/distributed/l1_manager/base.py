@@ -1257,13 +1257,17 @@ class BaseL1Manager(L1ManagerInterface):
         keys: list[ObjectKey],
         objs: list[MemoryObj],
     ) -> None:
-        """Free ``objs`` and report ``keys`` as deleted to listeners and
-        the event bus."""
+        """Free resident objects and publish their eviction events.
+
+        Notify listeners only for keys without remaining staging objects, so
+        abandoned reservations remain tracked by the eviction policy.
+        """
         freed_meta = [self._object_meta(obj) for obj in objs]
         self._memory_manager.free(objs)
 
+        deleted_keys = [key for key in keys if key not in self._staging]
         for listener in self._registered_listeners:
-            listener.on_l1_keys_deleted_by_manager(keys)
+            listener.on_l1_keys_deleted_by_manager(deleted_keys)
         self._event_bus.publish(
             Event(
                 event_type=EventType.L1_KEYS_EVICTED,
